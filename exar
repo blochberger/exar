@@ -79,6 +79,12 @@ def main() -> None:
 	)
 
 	parser.add_argument(
+		'--autoext',
+		help="Automatically append file extensions if missing.",
+		action='store_true',
+		default=False,
+	)
+	parser.add_argument(
 		'-o', '--out',
 		help="The path where the extracted files will be stored.",
 		default=None,
@@ -102,6 +108,7 @@ def main() -> None:
 	list_filenames = args.list_filenames
 	overwrite = args.force
 	autoname = args.autoname
+	autoext = args.autoext
 	extract = not (list_mimetypes or list_urls or list_filenames)
 	remove = args.remove
 
@@ -166,6 +173,11 @@ def main() -> None:
 
 			if extract_path is not None:
 				extract_fn = os.path.join(extract_path, fn)
+
+				head, tail = os.path.splitext(extract_fn)
+				if not tail and autoext:
+					extract_fn = head + (guess_extension(mimetype) or '')
+
 				while os.path.exists(extract_fn) and autoname:
 					head, tail = os.path.splitext(extract_fn)
 					extract_fn = '{}_{:03d}{}'.format(
@@ -174,6 +186,7 @@ def main() -> None:
 						tail,
 					)
 					subresource_id += 1
+
 				if os.path.exists(extract_fn) and not overwrite:
 					warning("File '{}' exists, skipped.".format(extract_fn))
 				else:
