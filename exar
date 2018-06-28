@@ -64,12 +64,20 @@ def main() -> None:
 		default=False,
 	)
 
-	parser.add_argument(
+	force_group = parser.add_mutually_exclusive_group()
+	force_group.add_argument(
 		'-f', '--force',
 		help="Overwrites files, if they exist.",
 		action='store_true',
 		default=False,
 	)
+	force_group.add_argument(
+		'-a', '--autoname',
+		help="Automatically rename file, if they exist.",
+		action='store_true',
+		default=False,
+	)
+
 	parser.add_argument(
 		'-o', '--out',
 		help="The path where the extracted files will be stored.",
@@ -93,6 +101,7 @@ def main() -> None:
 	list_urls = args.list_urls
 	list_filenames = args.list_filenames
 	overwrite = args.force
+	autoname = args.autoname
 	extract = not (list_mimetypes or list_urls or list_filenames)
 	remove = args.remove
 
@@ -130,6 +139,7 @@ def main() -> None:
 		mimetypes = set()
 		urls = []
 		filenames = []
+		subresource_id = 1
 		for subresource in subresources:
 			expected_keys = {'WebResourceData', 'WebResourceMIMEType', 'WebResourceURL'}
 			missing_keys = expected_keys.difference(set(subresource.keys()))
@@ -156,6 +166,14 @@ def main() -> None:
 
 			if extract_path is not None:
 				extract_fn = os.path.join(extract_path, fn)
+				while os.path.exists(extract_fn) and autoname:
+					head, tail = os.path.splitext(extract_fn)
+					extract_fn = '{}_{:03d}{}'.format(
+						head,
+						subresource_id,
+						tail,
+					)
+					subresource_id += 1
 				if os.path.exists(extract_fn) and not overwrite:
 					warning("File '{}' exists, skipped.".format(extract_fn))
 				else:
