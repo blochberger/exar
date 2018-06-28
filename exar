@@ -7,8 +7,8 @@ import uuid
 
 from argparse import ArgumentParser
 from mimetypes import guess_extension
-from urllib.parse import urlparse, unquote
 from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qs, urlparse, unquote
 
 
 try:
@@ -100,6 +100,12 @@ def main() -> None:
 		default=False,
 	)
 	parser.add_argument(
+		'--magic',
+		help="Try to heuristically guess original names of proxied files.",
+		action='store_true',
+		default=False,
+	)
+	parser.add_argument(
 		'-o', '--out',
 		help="The path where the extracted files will be stored.",
 		default=None,
@@ -124,6 +130,7 @@ def main() -> None:
 	overwrite = args.force
 	autoname = args.autoname
 	autoext = args.autoext
+	magic = args.magic
 	extract = not (list_mimetypes or list_urls or list_filenames)
 	remove = args.remove
 
@@ -178,6 +185,17 @@ def main() -> None:
 
 			if extract_path is not None:
 				extract_fn = os.path.join(extract_path, fn)
+
+				if magic:
+					url = urlparse(urlstr)
+					if url.query is not None and url.hostname.endswith('.googleusercontent.com') and url.path == '/gadgets/proxy':
+						query = parse_qs(url.query)
+						orig_url = query.get('url', None)
+						if type(orig_url) is list:
+							orig_url = orig_url[0]
+						if orig_url:
+							orig_fn = filename_from_url(orig_url, mimetype)
+							extract_fn = os.path.join(extract_fn, orig_fn)
 
 				head, tail = os.path.splitext(extract_fn)
 				if not tail and autoext:
