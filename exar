@@ -10,11 +10,13 @@ from mimetypes import guess_extension
 from typing import Any, Dict, List
 from urllib.parse import urlparse, unquote
 
+
 try:
 	from termcolor import colored
 except ModuleNotFoundError:
 	def colored(msg, *args, **kwargs):
 		return msg
+
 
 def error(msg: str) -> None:
 	print(colored(msg, 'red'), file=sys.stderr)
@@ -27,6 +29,10 @@ def fatal(msg: str, exit_code: int = 1) -> None:
 
 def warning(msg: str) -> None:
 	print(colored(msg, 'yellow'), file=sys.stderr)
+
+
+def info(msg: str) -> None:
+	print(colored(msg, 'blue'))
 
 
 def success(msg: str) -> None:
@@ -70,6 +76,12 @@ def main() -> None:
 		default=None,
 	)
 	parser.add_argument(
+		'--remove',
+		help="Remove the original web archive after successful extraction.",
+		action='store_true',
+		default=False,
+	)
+	parser.add_argument(
 		'webarchives',
 		help="Paths to the web archives.",
 		nargs='*',
@@ -82,26 +94,27 @@ def main() -> None:
 	list_filenames = args.list_filenames
 	overwrite = args.force
 	extract = not (list_mimetypes or list_urls or list_filenames)
+	remove = args.remove
 
-	for fn in fns:
-		fn = os.path.expanduser(fn)
+	for archive in fns:
+		archive = os.path.expanduser(archive)
 
 		# Determine name of output directory
 		if not extract:
 			extract_path = None
 		elif args.out is None:
-			extract_path = fn
-			if fn.endswith('.webarchive'):
+			extract_path = archive
+			if archive.endswith('.webarchive'):
 				extract_path = extract_path[:-len('.webarchive')]
 			else:
 				extract_path += '_out'
 		else:
 			extract_path = os.path.expanduser(args.out)
 
-		if not os.path.exists(fn):
+		if not os.path.exists(archive):
 			fatal("The file does not exist: {}".format(fn))
 
-		with open(fn, 'rb') as fp:
+		with open(archive, 'rb') as fp:
 			plist: Dict[str, Any] = plistlib.load(fp)
 
 		if 'WebSubresources' not in plist:
@@ -154,6 +167,10 @@ def main() -> None:
 			mimetypes.add(mimetype)
 			urls.append(urlstr)
 			filenames.append(fn)
+
+		if extract and remove:
+			os.remove(archive)
+			info("Removed '{}'".format(archive))
 
 		if list_mimetypes:
 			print('\n'.join(sorted(list(mimetypes))))
