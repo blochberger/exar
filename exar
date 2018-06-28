@@ -70,93 +70,97 @@ def main() -> None:
 		default=None,
 	)
 	parser.add_argument(
-		'webarchive',
-		help="The path to the web archive.",
+		'webarchives',
+		help="Paths to the web archives.",
+		nargs='*',
 	)
 	args = parser.parse_args()
 
-	fn = os.path.expanduser(args.webarchive)
+	fns = args.webarchives
 	list_mimetypes = args.list_mimetypes
 	list_urls = args.list_urls
 	list_filenames = args.list_filenames
 	overwrite = args.force
 	extract = not (list_mimetypes or list_urls or list_filenames)
 
-	# Determine name of output directory
-	if not extract:
-		extract_path = None
-	elif args.out is None:
-		extract_path = fn
-		if fn.endswith('.webarchive'):
-			extract_path = extract_path[:-len('.webarchive')]
+	for fn in fns:
+		fn = os.path.expanduser(fn)
+
+		# Determine name of output directory
+		if not extract:
+			extract_path = None
+		elif args.out is None:
+			extract_path = fn
+			if fn.endswith('.webarchive'):
+				extract_path = extract_path[:-len('.webarchive')]
+			else:
+				extract_path += '_out'
 		else:
-			extract_path += '_out'
-	else:
-		extract_path = os.path.expanduser(args.out)
+			extract_path = os.path.expanduser(args.out)
 
-	if not os.path.exists(fn):
-		fatal("The file does not exist: {}".format(fn))
+		if not os.path.exists(fn):
+			fatal("The file does not exist: {}".format(fn))
 
-	with open(fn, 'rb') as fp:
-		plist: Dict[str, Any] = plistlib.load(fp)
+		with open(fn, 'rb') as fp:
+			plist: Dict[str, Any] = plistlib.load(fp)
 
-	if 'WebSubresources' not in plist:
-		warning("No subresources.")
-		return
+		if 'WebSubresources' not in plist:
+			warning("No subresources.")
+			return
 
-	subresources: List[Dict[str, Any]] = plist['WebSubresources']
+		subresources: List[Dict[str, Any]] = plist['WebSubresources']
 
-	if len(subresources) == 0:
-		warning("No subresources.")
-		return
+		if len(subresources) == 0:
+			warning("No subresources.")
+			return
 
-	mimetypes = set()
-	urls = []
-	filenames = []
-	for subresource in subresources:
-		expected_keys = {'WebResourceData', 'WebResourceMIMEType', 'WebResourceURL'}
-		missing_keys = expected_keys.difference(set(subresource.keys()))
-		if missing_keys:
-			error("Missing keys: {}".format(missing_keys))
-			continue
+		mimetypes = set()
+		urls = []
+		filenames = []
+		for subresource in subresources:
+			expected_keys = {'WebResourceData', 'WebResourceMIMEType', 'WebResourceURL'}
+			missing_keys = expected_keys.difference(set(subresource.keys()))
+			if missing_keys:
+				error("Missing keys: {}".format(missing_keys))
+				continue
 
-		data: bytes = subresource['WebResourceData']
-		mimetype: str = subresource['WebResourceMIMEType']
-		urlstr: str = subresource['WebResourceURL']
+			data: bytes = subresource['WebResourceData']
+			mimetype: str = subresource['WebResourceMIMEType']
+			urlstr: str = subresource['WebResourceURL']
 
-		# Determine filename
-		url = urlparse(urlstr)
-		fn = unquote(url.path)
-		if fn.startswith('/'):
-			fn = fn[1:]
-		if url.scheme == 'data':
-			fn = str(uuid.uuid4())
-			extension = guess_extension(mimetype)
-			if extension is None:
-				warning("Unknown MIME type: {}".format(mimetype))
-			else:
-				fn += extension
+			# Determine filename
+			url = urlparse(urlstr)
+			fn = unquote(url.path)
+			if fn.startswith('/'):
+				fn = fn[1:]
+			if url.scheme == 'data':
+				fn = str(uuid.uuid4())
+				extension = guess_extension(mimetype)
+				if extension is None:
+					warning("Unknown MIME type: {}".format(mimetype))
+				else:
+					fn += extension
 
-		if extract_path is not None:
-			extract_fn = os.path.join(extract_path, fn)
-			if os.path.exists(extract_fn) and not overwrite:
-				warning("File '{}' exists, skipped.".format(extract_fn))
-			else:
-				os.makedirs(os.path.dirname(extract_fn), exist_ok=True)
-				with open(extract_fn, 'wb') as fp:
-					fp.write(data)
-				success("Extracted '{}'".format(extract_fn))
+			if extract_path is not None:
+				extract_fn = os.path.join(extract_path, fn)
+				if os.path.exists(extract_fn) and not overwrite:
+					warning("File '{}' exists, skipped.".format(extract_fn))
+				else:
+					os.makedirs(os.path.dirname(extract_fn), exist_ok=True)
+					with open(extract_fn, 'wb') as fp:
+						fp.write(data)
+					success("Extracted '{}'".format(extract_fn))
 
-		mimetypes.add(mimetype)
-		urls.append(urlstr)
-		filenames.append(fn)
+			mimetypes.add(mimetype)
+			urls.append(urlstr)
+			filenames.append(fn)
 
-	if list_mimetypes:
-		print('\n'.join(sorted(list(mimetypes))))
-	elif list_urls:
-		print('\n'.join(urls))
-	elif list_filenames:
-		print('\n'.join(filenames))
+		if list_mimetypes:
+			print('\n'.join(sorted(list(mimetypes))))
+		elif list_urls:
+			print('\n'.join(urls))
+		elif list_filenames:
+			print('\n'.join(filenames))
 
 
 if __name__ == '__main__':
